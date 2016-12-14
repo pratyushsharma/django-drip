@@ -1,8 +1,10 @@
 import base64
 import json
+import csv
 
 from django import forms
 from django.contrib import admin
+from django.http import HttpResponse
 
 from drip.models import Drip, SentDrip, QuerySetRule, DripSplitSubject
 from drip.drips import configured_message_classes, message_class_for
@@ -26,12 +28,22 @@ class DripForm(forms.ModelForm):
         exclude = []
 
 
+def download_csv(modeladmin, request, queryset):
+    response = HttpResponse(content_type='text/csv')
+    writer = csv.writer(response)
+    for drip in queryset:
+        response['Content-Disposition'] = 'attachment; filename="'+drip.name+'.csv"'
+        for user in drip.drip.get_queryset():
+            writer.writerow([user.first_name, user.email])
+    return response
+
 class DripAdmin(admin.ModelAdmin):
     list_display = ('name', 'enabled', 'message_class')
     inlines = [
         QuerySetRuleInline,
         DripSplitSubjectInline,
     ]
+    actions = [download_csv]
     form = DripForm
 
     av = lambda self, view: self.admin_site.admin_view(view)
