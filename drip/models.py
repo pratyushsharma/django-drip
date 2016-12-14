@@ -40,6 +40,8 @@ class Drip(models.Model):
         help_text='You will have settings and user in the context.')
     message_class = models.CharField(max_length=120, blank=True, default='default')
 
+    rule_string = models.CharField(max_length=255, blank=True, default="")
+
     @property
     def drip(self):
         from drip.drips import DripBase
@@ -108,8 +110,8 @@ LOOKUP_TYPES = (
     ('lt', 'less than'),
     ('lte', 'less than or equal to'),
     ('startswith', 'starts with'),
-    ('endswith', 'starts with'),
-    ('istartswith', 'ends with (case insensitive)'),
+    ('endswith', 'ends with'),
+    ('istartswith', 'starts with (case insensitive)'),
     ('iendswith', 'ends with (case insensitive)'),
 )
 
