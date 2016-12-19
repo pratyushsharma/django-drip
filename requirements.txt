@@ -1,6 +1,7 @@
 # production
-Django>=1.4
+Django==1.9
 django-timedeltafield==0.7.2
+pyparsing==2.1.10
 
 # development
 Sphinx==1.1.3

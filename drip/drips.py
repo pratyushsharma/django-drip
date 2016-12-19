@@ -9,7 +9,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 
 from drip.models import SentDrip
-from drip.utils import get_user_model
+from drip.utils import get_user_model, RuleEvaluator
 
 try:
     from django.utils.timezone import now as conditional_now
@@ -158,25 +158,19 @@ class DripBase(object):
     def apply_queryset_rules(self, qs):
         """
         First collect all filter/exclude kwargs and apply any annotations.
-        Then apply all filters at once, and all excludes at once.
+        Then apply all at once.
         """
-        clauses = {
-            'filter': [],
-            'exclude': []}
-
+        rule_string = self.drip_model.rule_string
+        clause = []
         for rule in self.drip_model.queryset_rules.all():
-
-            clause = clauses.get(rule.method_type, clauses['filter'])
-
             kwargs = rule.filter_kwargs(qs, now=self.now)
-            clause.append(Q(**kwargs))
-
+            clause.append((Q(**kwargs), rule.method_type))
             qs = rule.apply_any_annotation(qs)
 
-        if clauses['exclude']:
-            qs = qs.exclude(functools.reduce(operator.or_, clauses['exclude']))
-        qs = qs.filter(*clauses['filter'])
-
+        ruleEvaluator = RuleEvaluator(clause)
+        ruleEvaluator.BNF().parseString(rule_string)
+        Q_filter = ruleEvaluator.evaluateStack()
+        qs = qs.filter(Q_filter)
         return qs
 
     ##################

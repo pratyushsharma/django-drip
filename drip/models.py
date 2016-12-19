@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import random
+import ast
 
 from django.db import models
 from django.core.exceptions import ValidationError
@@ -39,6 +40,8 @@ class Drip(models.Model):
     body_html_template = models.TextField(null=True, blank=True,
         help_text='You will have settings and user in the context.')
     message_class = models.CharField(max_length=120, blank=True, default='default')
+
+    rule_string = models.CharField(max_length=255, blank=True, default="")
 
     @property
     def drip(self):
@@ -108,9 +111,10 @@ LOOKUP_TYPES = (
     ('lt', 'less than'),
     ('lte', 'less than or equal to'),
     ('startswith', 'starts with'),
-    ('endswith', 'starts with'),
-    ('istartswith', 'ends with (case insensitive)'),
+    ('endswith', 'ends with'),
+    ('istartswith', 'starts with (case insensitive)'),
     ('iendswith', 'ends with (case insensitive)'),
+    ('in', 'in'),
 )
 
 class QuerySetRule(models.Model):
@@ -157,6 +161,7 @@ class QuerySetRule(models.Model):
         field_name = '__'.join([field_name, self.lookup_type])
         field_value = self.field_value
 
+
         # set time deltas and dates
         if self.field_value.startswith('now-'):
             field_value = self.field_value.replace('now-', '')
@@ -181,6 +186,9 @@ class QuerySetRule(models.Model):
             field_value = True
         if self.field_value == 'False':
             field_value = False
+
+        if self.lookup_type == 'in':
+            field_value = ast.literal_eval(self.field_value)
 
         kwargs = {field_name: field_value}
 

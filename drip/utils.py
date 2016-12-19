@@ -8,6 +8,9 @@ from django.db.models import ForeignKey, OneToOneField, ManyToManyField
 #   # django 1.8 +
 from django.db.models.fields.related import ForeignObjectRel
 
+from pyparsing import Literal,CaselessLiteral,Word,Combine,Group,Optional,\
+    ZeroOrMore,Forward,nums,alphas
+
 # taking a nod from python-requests and skipping six
 _ver = sys.version_info
 is_py2 = (_ver[0] == 2)
@@ -141,3 +144,77 @@ def get_user_model():
     except ImportError:
         from django.contrib.auth.models import User
     return User
+
+
+
+
+
+
+
+
+class RuleEvaluator:
+
+    def get_Q(self, arg):
+        """
+        """
+        if not isinstance(arg, unicode):
+            return arg
+        Q_arg = models.Q(self.clause[int(arg)-1][0]) if self.clause[int(arg)-1][1] == 'filter'\
+         else ~models.Q(self.clause[int(arg)-1][0])
+        return Q_arg
+
+    def apply_or(self, arg1, arg2):
+        """
+        Takes two arguments and applies | between them
+        """
+        return (arg1 | arg2)
+
+    def apply_and(self, arg1, arg2):
+        """
+        Takes two arguments and applies & between them
+        """
+        return (arg1 & arg2)
+
+    def __init__(self, clause):
+        self.clause = clause
+        self.opn = {"|" : self.apply_or, "&" : self.apply_and}
+        self.exprStack = []
+        self.bnf = None
+
+
+    def pushFirst(self, strg, loc, toks ):
+        self.exprStack.append( toks[0] )
+
+    def BNF(self):
+        if not self.bnf:
+            fnumber = Combine( Word( "+-"+nums, nums ) +
+                               Optional( Optional( Word( nums ) ) ) +
+                               Optional( Word( "+-"+nums, nums ) ) )
+            ident = Word(alphas, alphas+nums+"_$")
+
+            lpar  = Literal( "(" ).suppress()
+            rpar  = Literal( ")" ).suppress()
+            orop  = Literal( "|" )
+            andop = Literal( "&" )
+
+            expr = Forward()
+            atom = ( fnumber | ident + lpar + expr + rpar ).setParseAction( self.pushFirst ) | ( lpar + expr.suppress() + rpar )
+
+            factor = Forward()
+            factor << atom
+
+            term = factor + ZeroOrMore( ( andop + factor ).setParseAction( self.pushFirst ) )
+            expr << term + ZeroOrMore( ( orop + term ).setParseAction( self.pushFirst ) )
+            self.bnf = expr
+        return self.bnf
+
+    def evaluateStack(self, s=None):
+        if s == None:
+            s = self.exprStack
+        op = s.pop()
+        if op in "|&":
+            op2 = self.evaluateStack( s )
+            op1 = self.evaluateStack( s )
+            return self.opn[op]( op1, op2 )
+        else:
+            return self.get_Q(op)
